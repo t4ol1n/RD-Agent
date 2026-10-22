@@ -1,0 +1,51 @@
+name: Sync Upstream
+
+on:
+  schedule:
+    - cron: '15 0 * * 0'   # 每周日 UTC 00:15（北京时间 08:15）
+  workflow_dispatch:       # 允许手动触发
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout fork
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Sync from upstream
+        uses: aormsby/Fork-Sync-With-Upstream-action@v3.4.3
+        with:
+          upstream_sync_repo: microsoft/RD-Agent
+          upstream_sync_branch: main
+          target_sync_branch: main
+          target_repo_token: ${{ secrets.GITHUB_TOKEN }}
+          test_mode: false
+
+      - name: Notify on conflict
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const existing = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              per_page: 50
+            });
+            const hasOpen = existing.data.some(i => i.title.includes('Upstream sync failed'));
+            if (!hasOpen) {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: 'Upstream sync failed - merge conflict detected',
+                body: `Automatic sync from upstream (microsoft/RD-Agent) failed at ${new Date().toISOString()}. Please resolve conflicts manually.`,
+                labels: ['upstream-sync']
+              });
+            }
