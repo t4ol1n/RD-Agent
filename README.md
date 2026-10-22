@@ -31,6 +31,7 @@
 # 📰 News
 | 🗞️ News        | 📝 Description                 |
 | --            | ------      |
+| [Agent² RL-Bench Preprint](https://arxiv.org/abs/2604.10547) | A benchmark for evaluating LLM agents on end-to-end post-training engineering. See the [project page](https://wanyichen06.github.io/agent2-rlbench/) and [code](rdagent/scenarios/rl/autorl_bench/README.md). |
 | ICML 2026 Acceptance | We are thrilled to announce that our paper [FT-Dojo: Towards Autonomous LLM Fine-Tuning with Language Agents](https://arxiv.org/abs/2603.01712) has been accepted to ICML 2026. The FT-Agent implementation is available in the [LLM fine-tuning guide](rdagent/app/finetune/llm/README.md). |
 | ACL 2026 Findings Acceptance | We are thrilled to announce that our paper [Reasoning as Gradient](https://arxiv.org/abs/2603.01692) has been accepted to ACL 2026 Findings. Execution traces are available at [Gome GPT-5 Traces](https://huggingface.co/datasets/amstrongzyf/Gome-GPT5-Traces) |
 | Web UI Release | We release a new frontend that can be built and served by `rdagent server_ui` for real-time interaction and trace viewing, currently excluding the `data_science` scenario. |
@@ -45,6 +46,17 @@
 | Official Discord release  | We launch our first chatting channel in Discord (🗪[![Chat](https://img.shields.io/badge/chat-discord-blue)](https://discord.gg/ybQ97B6Jjy)) |
 | First release | **R&D-Agent** is released on GitHub |
 
+
+# 🧪 Agent² RL-Bench
+
+<p align="center">
+  <a href="https://wanyichen06.github.io/agent2-rlbench/"><b>Project Page</b></a> ·
+  <a href="https://arxiv.org/abs/2604.10547"><b>Paper</b></a> ·
+  <a href="rdagent/scenarios/rl/autorl_bench/README.md"><b>Code & Quick Start</b></a> ·
+  <a href="https://www.microsoft.com/en-us/research/publication/agent2-rl-bench-can-llm-agents-engineer-agentic-rl-post-training/"><b>Microsoft Research</b></a>
+</p>
+
+**Agent² RL-Bench** evaluates whether LLM agents can autonomously engineer end-to-end post-training pipelines, spanning static optimization and stateful online RL.
 
 
 # 🏆 The Best Machine Learning Engineering Agent!
@@ -387,6 +399,65 @@ rdagent server_ui --port 19899
 
 After that, open `http://127.0.0.1:19899` in your browser.
 
+##### Web UI security and remote access
+
+The Flask backend listens on `127.0.0.1` by default. This keeps its process-control, upload, and trace APIs accessible only from the local machine. No authentication token is required while the server is bound to localhost.
+
+To access the Web UI from another machine, explicitly bind it to a non-local address and configure an authentication token:
+
+```sh
+export UI_SERVER_AUTH_TOKEN='<a-long-random-token>'
+rdagent server_ui --port 19899 --host 0.0.0.0
+```
+
+Then open the following URL once to establish an authenticated browser session:
+
+```text
+http://<server-host>:19899/?token=<a-long-random-token>
+```
+
+The server removes the token from the address bar by redirecting to `/` and stores it in an HTTP-only, same-site cookie. API clients can instead send it in the request header:
+
+```text
+Authorization: Bearer <a-long-random-token>
+```
+
+The server refuses to bind to a non-local address unless `UI_SERVER_AUTH_TOKEN` is set. When exposing it outside a trusted development machine, put it behind an HTTPS reverse proxy and avoid recording token-bearing query strings in proxy logs. The `--host` option controls the address when the server is started through the CLI; `UI_SERVER_HOST` is the corresponding default for direct use of the backend entry point.
+
+Cross-origin browser access is disabled by default. If the frontend and backend are served from different origins, configure an explicit JSON allowlist rather than enabling every origin:
+
+```sh
+export UI_CORS_ALLOWED_ORIGINS='["https://ui.example.com"]'
+```
+
+##### Web UI storage and compatibility settings
+
+The Flask backend uses the following environment variables. Uploaded input files are deliberately kept outside the trace directory so that they cannot be discovered and deserialized as persisted traces.
+
+| Environment variable | Default | Description |
+| --- | --- | --- |
+| `UI_STATIC_PATH` | `./git_ignore_folder/static` | Directory containing the built Web UI assets. |
+| `UI_TRACE_FOLDER` | `./git_ignore_folder/traces` | Directory containing generated trace data and process logs. |
+| `UI_UPLOAD_FOLDER` | `./git_ignore_folder/uploads` | Isolated directory for uploaded input files. Mount, back up, and clean it separately from the trace directory. |
+| `UI_SERVER_HOST` | `127.0.0.1` | Default host used by the backend entry point. Use `server_ui --host` when starting it through the CLI. |
+| `UI_SERVER_AUTH_TOKEN` | empty | Bearer/cookie authentication token. Required for any non-localhost binding. |
+| `UI_CORS_ALLOWED_ORIGINS` | `[]` | JSON list of allowed browser origins. CORS is disabled when the list is empty. |
+| `UI_MAX_UPLOAD_MB` | `20` | Maximum size in MiB of an entire HTTP request, including all uploaded files and form data. |
+| `UI_LOAD_LEGACY_PICKLE_TRACES` | `false` | Whether to deserialize persisted pickle traces when the server starts. Enable only for a fully trusted trace directory. |
+
+Uploads whose filenames end in `.dill`, `.pickle`, `.pkl`, `.py`, `.pyc`, or `.pyo` are rejected. Existing workflows that use these formats as uploaded inputs must convert them to a non-executable data format or provide them through another trusted mechanism.
+
+Legacy pickle trace loading is disabled by default because pickle deserialization can execute code. Consequently, after a server restart, an existing trace may still appear in the history list but its saved messages will not be loaded into the Web UI. If compatibility with trusted historical traces is required, opt in explicitly:
+
+```sh
+export UI_LOAD_LEGACY_PICKLE_TRACES=true
+rdagent server_ui --port 19899
+```
+
+Only enable this setting when every file under `UI_TRACE_FOLDER` is trusted and the directory is not writable by untrusted users or services.
+
+Data-science trace share links no longer accept a URL-controlled `log_folder`. A link can preserve the selected trace, but the recipient must have the corresponding log folder configured or select it in the UI.
+
 #### Common Notes
 
 Port `19899` is used in the examples above. Before starting either UI, check whether this port is already occupied. If it is, please change it to another available port.
@@ -472,6 +543,19 @@ More documents can be found in the **[📖 readthedocs](https://rdagent.readthed
 ![image](https://github.com/user-attachments/assets/28b0488d-a546-4fef-8dc5-563ed64a9b4d)
 
 ## 📊 Benchmark
+- [Agent² RL-Bench: Can LLM Agents Engineer Agentic RL Post-Training?](https://arxiv.org/abs/2604.10547) ([Project Page](https://wanyichen06.github.io/agent2-rlbench/) · [Code](rdagent/scenarios/rl/autorl_bench/README.md))
+```BibTeX
+@misc{chen2026agent2rlbench,
+      title={Agent$^2$ RL-Bench: Can LLM Agents Engineer Agentic RL Post-Training?},
+      author={Wanyi Chen and Xiao Yang and Xu Yang and Tianming Sha and Qizheng Li and Zhuo Wang and Bowen Xian and Fang Kong and Weiqing Liu and Jiang Bian},
+      year={2026},
+      eprint={2604.10547},
+      archivePrefix={arXiv},
+      primaryClass={cs.AI},
+      url={https://arxiv.org/abs/2604.10547}
+}
+```
+
 - [Towards Data-Centric Automatic R&D](https://arxiv.org/abs/2404.11276)
 ```BibTeX
 @misc{chen2024datacentric,
